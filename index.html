@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=800">
+    <title>Telnik - File Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0d0d0d;
+            color: #d1d5db;
+        }
+        .dark-card {
+            background-color: #1a1a1a;
+            border: 1px solid #2d2d2d;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        .dark-main-content {
+            background-color: #1a1a1a;
+            border: 1px solid #2d2d2d;
+        }
+        .dark-item-hover:hover {
+            background-color: #242424;
+            cursor: pointer;
+        }
+        .input-dark {
+            background-color: #262626;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            transition: all 0.2s ease-in-out;
+        }
+        .input-dark::placeholder {
+            color: #6b7280;
+        }
+        .input-dark:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+        }
+        .btn-primary {
+            background-color: #4f46e5;
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background-color: #2d2d2d;
+            color: #9ca3af;
+            border: 1px solid #4a4a4a;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #3d3d3d;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            transition: width 0.3s ease;
+        }
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+        }
+        .checkmark {
+            height: 20px;
+            width: 20px;
+            background-color: #262626;
+            border: 1px solid #444;
+            border-radius: 4px;
+            transition: background-color 0.2s, border-color 0.2s;
+            position: relative;
+            display: inline-block;
+        }
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 7px;
+            top: 3px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 3px 3px 0;
+            transform: rotate(45deg);
+        }
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+        .checkbox-container {
+            display: block;
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+        .file-item-selected {
+            background-color: #3f3f46 !important; /* gray-700 */
+        }
+        /* Custom class for button text */
+        .btn-text-icon {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem; /* text-xs */
+            line-height: 1.2;
+        }
+        .btn-text-icon span:first-child {
+            margin-right: 0.25rem;
+        }
+        /* Custom style for the folder tree view */
+        .folder-tree-item {
+            padding-left: calc(0.75rem + 1rem * var(--depth, 0)); /* Adjusted for better indentation */
+        }
+        .folder-tree-item:hover {
+            background-color: #242424;
+        }
+        .active-folder {
+            background-color: #312e81; /* indigo-900 */
+            color: #a5b4fc; /* indigo-300 */
+            font-weight: 600;
+        }
+        .truncate-1 {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        /* Responsive adjustments for file list */
+        @media (max-width: 640px) {
+            .file-manager-item .col-span-3, .file-manager-item .col-span-1 {
+                display: none;
+            }
+            .file-manager-item .col-span-6 {
+                grid-column: span 9 / span 9;
+            }
+            .file-manager-item .col-span-2 {
+                grid-column: span 3 / span 3;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/iconify/2.0.0/iconify.min.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-300 min-h-screen p-4 sm:p-6 lg:p-8">
+
+    <div id="statusMessage" class="fixed top-4 right-4 z-[100] transition-all duration-300 transform translate-x-full opacity-0"></div>
+
+    <div class="container mx-auto max-w-7xl">
+        <header class="flex flex-col md:flex-row justify-between items-center py-6 px-4 dark-card rounded-2xl mb-6">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-500 mb-4 md:mb-0">
+                <span class="mr-2">🗃️ Telnik - File Manager<span>
+            </h1>
+            <div id="connectionStatus" class="flex items-center gap-2 text-sm">
+                <div class="w-3 h-3 rounded-full bg-orange-400 animate-pulse" id="statusDot"></div>
+                <span class="text-orange-400">🔄 Connecting...</span>
+            </div>
+        </header>
+
+        <main class="flex gap-6">
+            <aside class="hidden lg:block w-64 flex-shrink-0 dark-card rounded-2xl p-4 h-full sticky top-8 self-start max-h-[80vh] overflow-y-auto">
+                <h2 class="text-lg font-bold text-gray-100 mb-4 flex items-center gap-2">
+                    <span class="icon-[tabler--folders] text-indigo-400 w-5 h-5"></span>Folders
+                </h2>
+                <div onclick="navigateFolder('/')" 
+                     class="flex items-center gap-2 p-2 rounded-lg text-sm transition-colors dark-item-hover mb-2 ${currentFolder === '/' ? 'bg-indigo-900/50 text-indigo-300' : 'text-gray-300'}">
+                    <span class="icon-[tabler--world] w-5 h-5"></span>
+                    <span>All Files</span>
+                </div>
+                <div id="folderList" class="space-y-1">
+                    </div>
+            </aside>
+
+            <section class="flex-1 flex flex-col gap-6">
+                <div class="dark-main-content rounded-2xl p-6">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                        <div class="flex gap-3">
+                            <button id="createFolderBtn" class="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl font-medium">
+                                
+                                <span>New Folder</span>
+                            </button>
+                            <button id="uploadFileBtn" class="btn-secondary flex items-center gap-2 px-4 py-2 rounded-xl font-medium">
+                                
+                                <span>Upload File</span>
+                            </button>
+                            <input type="file" id="fileInput" multiple class="hidden">
+                        </div>
+
+                        <div class="flex items-center gap-4">
+                            <div class="relative w-48">
+                                <span class="icon-[tabler--search] absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 w-5 h-5"></span>
+                                <input type="text" id="searchFiles" placeholder="Search files..." class="input-dark w-full pl-10 pr-4 py-2 rounded-xl text-sm">
+                            </div>
+                            <div id="selectionActions" class="flex items-center gap-2 hidden">
+                                <button id="deleteSelectedBtn" class="bg-red-600 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-red-700 disabled:opacity-50" disabled>
+                                    <span class="icon-[tabler--trash] inline-block -mt-0.5 mr-1"></span>
+                                    Delete (<span id="selectedCount">0</span>)
+                                </button>
+                                <button id="moveSelectedBtn" class="bg-indigo-600 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-indigo-700 disabled:opacity-50" disabled>
+                                    <span class="icon-[tabler--arrows-move] inline-block -mt-0.5 mr-1"></span>
+                                    Move (<span id="selectedCountMove">0</span>)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 pb-2 border-b border-gray-800">
+                        <div id="breadcrumbs" class="text-sm font-medium text-gray-500 flex items-center gap-1 mb-2 sm:mb-0">
+                            </div>
+                        <div class="flex items-center gap-4 text-sm text-gray-500">
+                            <span>Total Items: <span id="totalFiles" class="font-semibold text-gray-300">0</span></span>
+                            <span>Used Storage: <span id="usedStorage" class="font-semibold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-teal-500">0 MB</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-12 text-xs font-semibold uppercase text-gray-500 pb-2 border-b border-gray-800 px-4">
+                        <div class="col-span-6 flex items-center">
+                            <input type="checkbox" id="selectAllCheckbox" class="mr-3 w-4 h-4 rounded text-indigo-600 bg-gray-700 border-gray-600 focus:ring-indigo-500" onchange="toggleSelectAll(this.checked)">
+                            Name
+                        </div>
+                        <div 
+                        
+                        class="col-span-3 hidden sm:block"
+                        
+                        >Date</div>
+                        <div 
+                        
+                        style="margin-left: 15px;"
+                        
+                        >Size</div>
+                        <div 
+                        
+                        style="margin-left: 40px;"
+                        
+                        >Options</div>
+                    </div>
+
+                    <div id="fileManagerList" class="divide-y divide-gray-800 mt-2 min-h-[300px]">
+                        </div>
+
+                    <div id="noFiles" class="text-center py-12 text-gray-500 hidden">
+                        <span class="icon-[tabler--file-off] mx-auto w-20 h-20 mb-4 text-gray-700"></span>
+                        <p class="text-lg">This folder is empty.</p>
+                        <p class="text-sm text-gray-600">You can upload files or create new folders here.</p>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="categoryModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-2xl p-6 max-w-sm w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-100 mb-4">Create New Folder</h3>
+            <p class="text-sm text-gray-400 mb-3 truncate-1">Creating folder in: <span id="currentModalPath" class="font-semibold text-indigo-300"></span></p>
+            <input type="text" id="categoryName" placeholder="Enter folder name..." class="input-dark w-full px-4 py-3 rounded-lg mb-4">
+            <div class="flex gap-3">
+                <button id="saveCategoryBtn" class="flex-1 btn-primary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--device-floppy] w-5 h-5"></span>
+                    Create
+                </button>
+                <button id="cancelCategoryBtn" class="flex-1 btn-secondary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--x] w-5 h-5"></span>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-2xl p-6 max-w-lg w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-100 mb-4">Upload Files</h3>
+            <div id="uploadFilesList" class="space-y-3 max-h-64 overflow-y-auto pr-2 mb-4"></div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Upload Folder</label>
+                <select id="uploadCategoryDropdown" class="input-dark w-full px-4 py-3 rounded-lg"></select>
+            </div>
+            
+            <div id="progressContainer" class="hidden mb-4">
+                <div class="h-2.5 rounded-full overflow-hidden">
+                    <div id="progressBar" class="progress-bar h-full rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progressText" class="text-xs text-gray-400 mt-2 text-center"></p>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="confirmUploadBtn" class="btn-primary py-3 px-6 rounded-lg disabled:opacity-50 flex items-center justify-center gap-1" disabled>
+                    <span class="icon-[tabler--upload] w-5 h-5"></span>
+                    Start Upload
+                </button>
+                <button id="cancelAllUploadsBtn" class="btn-secondary py-3 px-6 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--x] w-5 h-5"></span>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-2xl p-6 max-w-sm w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-100 mb-4">Edit File Details</h3>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1 truncate-1">Current File: <span id="currentFileName" class="text-gray-100 font-semibold"></span></label>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1">New Folder</label>
+                <select id="editCategoryDropdown" class="input-dark w-full px-4 py-3 rounded-lg"></select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Search Name (Optional)</label>
+                <input type="text" id="editSearchName" placeholder="Enter a search name..." class="input-dark w-full px-4 py-3 rounded-lg">
+            </div>
+            <div class="flex gap-3">
+                <button id="saveEditBtn" class="flex-1 btn-primary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--device-floppy] w-4 h-4"></span>
+                    Save Changes
+                </button>
+                <button id="cancelEditBtn" class="flex-1 btn-secondary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--x] w-4 h-4"></span>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="moveItemsModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <div class="dark-card rounded-2xl p-6 max-w-sm w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-100 mb-4">Move Selected Items</h3>
+            <p class="text-sm text-gray-400 mb-4">Move <span id="moveSelectedCount" class="font-semibold text-indigo-300">0</span> items to:</p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Destination Folder</label>
+                <select id="moveCategoryDropdown" class="input-dark w-full px-4 py-3 rounded-lg"></select>
+            </div>
+            <div class="flex gap-3">
+                <button id="confirmMoveBtn" class="flex-1 btn-primary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--arrows-move] w-5 h-5"></span>
+                    Move
+                </button>
+                <button id="cancelMoveBtn" class="flex-1 btn-secondary py-2 px-4 rounded-lg flex items-center justify-center gap-1">
+                    <span class="icon-[tabler--x] w-5 h-5"></span>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Re-export Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, set, get, onValue, remove, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // NOTE: Replace with your actual Firebase configuration
+        const firebaseConfig = {
+              apiKey: " ",
+            authDomain: "",
+            databaseURL: " ",
+            projectId: " ",
+            storageBucket: " ",
+            messagingSenderId: " ",
+            appId: " ",
+            measurementId: " "
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        
+        // Expose Firebase functions to global scope
+        window.firebaseDB = database;
+        window.firebaseRef = ref;
+        window.firebasePush = push;
+        window.firebaseSet = set;
+        window.firebaseGet = get;
+        window.firebaseOnValue = onValue;
+        window.firebaseRemove = remove;
+        window.firebaseUpdate = update;
+
+        document.dispatchEvent(new CustomEvent('firebaseLoaded'));
+    </script>
+    
+    <script>
+        const BOT_TOKEN = ' fill here ';
+        const CHAT_ID = ' fill here ';
+        const TELEGRAM_API_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
+        
+        const DEFAULT_CATEGORIES = ['Documents', 'Images', 'Videos', 'Audio', 'Others'];
+
+        let selectedFilesForUpload = [];
+        let uploadedFiles = [];
+        let categories = []; 
+        let currentFolder = '/'; 
+        let firebaseInitialized = false;
+        let isUploading = false;
+        let selectedItemKeys = []; 
+        let folderMetadata = {}; 
+
+        document.addEventListener('firebaseLoaded', function() {
+            firebaseInitialized = true;
+            updateConnectionStatus('✅ Firebase connected', 'text-green-400', 'bg-green-400');
+            initializeFolderMetadata();
+            setupEventListeners();
+            testBotConnection();
+            setupFirebaseListeners();
+        });
+        
+        // --- Initialization and Folder Metadata ---
+
+        function initializeFolderMetadata() {
+            // Initialize default folder metadata
+            DEFAULT_CATEGORIES.forEach(path => {
+                if (!folderMetadata[path]) {
+                    folderMetadata[path] = {
+                        createTime: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        isDefault: true
+                    };
+                }
+            });
+            categories = [...DEFAULT_CATEGORIES];
+        }
+
+        // --- Connection and Status (Same as before) ---
+
+        function updateConnectionStatus(message, textClass, dotClass) {
+            const status = document.getElementById('connectionStatus');
+            status.innerHTML = `<div class="w-3 h-3 rounded-full ${dotClass} animate-pulse" id="statusDot"></div><span class="${textClass}">${message}</span>`;
+        }
+        
+        async function testBotConnection() {
+            try {
+                const response = await fetch(`${TELEGRAM_API_URL}/getMe`);
+                if (response.ok) {
+                    updateConnectionStatus('✅ Firebase & Telegram Bot connected', 'text-green-400', 'bg-green-400');
+                } else {
+                    updateConnectionStatus('⚠️ Firebase connected, Bot failed', 'text-yellow-400', 'bg-yellow-400');
+                }
+            } catch (error) {
+                updateConnectionStatus('⚠️ Firebase connected, Bot failed', 'text-yellow-400', 'bg-yellow-400');
+            }
+        }
+
+        // --- Firebase Handlers ---
+
+        function setupFirebaseListeners() {
+            // Listen for File changes
+            const filesRef = window.firebaseRef(window.firebaseDB, 'uploadedFiles');
+            window.firebaseOnValue(filesRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    uploadedFiles = Object.keys(data).map(key => ({ firebaseKey: key, ...data[key] }));
+                } else {
+                    uploadedFiles = [];
+                }
+                updateAllCategoriesFromFiles();
+                renderFilesAndFolders();
+                calculateAndDisplayTotalStorage();
+            });
+
+            // Listen for Category changes
+            const categoriesRef = window.firebaseRef(window.firebaseDB, 'categories');
+            window.firebaseOnValue(categoriesRef, (snapshot) => {
+                const data = snapshot.val();
+                let firebaseCategories = [];
+                if (data) {
+                    firebaseCategories = Object.values(data);
+                    firebaseCategories.forEach(path => {
+                        if (!folderMetadata[path]) {
+                            folderMetadata[path] = {
+                                createTime: new Date().toISOString(), 
+                                isDefault: false
+                            };
+                        }
+                    });
+                }
+                updateAllCategories(firebaseCategories);
+            });
+        }
+        
+        function updateAllCategoriesFromFiles() {
+            const fileCategories = uploadedFiles.map(f => f.category).filter(c => c && c !== '/');
+            const newCategories = [...new Set(fileCategories)];
+            updateAllCategories(newCategories);
+        }
+
+        function updateAllCategories(firebaseCategories = []) {
+            let allCategories = new Set([...DEFAULT_CATEGORIES, ...firebaseCategories]);
+            
+            let derivedCategories = new Set();
+            allCategories.forEach(path => {
+                let segments = path.split('/');
+                for (let i = 1; i < segments.length; i++) {
+                    derivedCategories.add(segments.slice(0, i).join('/'));
+                }
+            });
+            
+            categories = [...new Set([...allCategories, ...derivedCategories])].sort((a, b) => a.localeCompare(b));
+            
+            categories.forEach(path => {
+                if (!folderMetadata[path]) {
+                    folderMetadata[path] = {
+                        createTime: new Date().toISOString(), 
+                        isDefault: DEFAULT_CATEGORIES.includes(path)
+                    };
+                }
+            });
+            
+            updateCategoryDropdowns();
+            renderFolderList();
+            renderFilesAndFolders();
+        }
+
+
+        async function saveFileToFirebase(fileData) {
+            try {
+                const filesRef = window.firebaseRef(window.firebaseDB, 'uploadedFiles');
+                await window.firebasePush(filesRef, fileData);
+            } catch (error) {
+                console.error('Firebase save error:', error);
+                showMessage('Failed to save file reference to Firebase.', 'error');
+            }
+        }
+        
+        async function saveCategory() {
+            if (!firebaseInitialized) {
+                showMessage('Firebase is not initialized yet!', 'error');
+                return;
+            }
+            const folderName = document.getElementById('categoryName').value.trim();
+            if (!folderName) {
+                showMessage('Please enter a folder name!', 'error');
+                return;
+            }
+            
+            const parentPath = currentFolder === '/' ? '' : currentFolder + '/';
+            // Only allow alphanumeric, space, and hyphens in folder name
+            const sanitizedFolderName = folderName.replace(/[^a-zA-Z0-9\s-]/g, '').trim(); 
+            const newPath = parentPath + sanitizedFolderName;
+            
+            if (newPath === currentFolder || !sanitizedFolderName) {
+                showMessage('Invalid or empty folder name after sanitization.', 'error');
+                return;
+            }
+
+            if (categories.includes(newPath)) {
+                showMessage('This folder already exists!', 'error');
+                return;
+            }
+            
+            try {
+                const categoriesRef = window.firebaseRef(window.firebaseDB, 'categories');
+                await window.firebasePush(categoriesRef, newPath);
+                
+                folderMetadata[newPath] = {
+                    createTime: new Date().toISOString(),
+                    isDefault: false
+                }; 
+                
+                hideModal('categoryModal');
+                document.getElementById('categoryName').value = '';
+                showMessage(`✅ Folder "${newPath}" created successfully!`, 'success');
+            } catch (error) {
+                console.error('Category save error:', error);
+                showMessage('Failed to create folder!', 'error');
+            }
+        }
+        
+        // --- UI Setup & Event Listeners ---
+        
+        function setupEventListeners() {
+            document.getElementById('createFolderBtn').addEventListener('click', showCreateFolderModal);
+            document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+            document.getElementById('cancelCategoryBtn').addEventListener('click', () => hideModal('categoryModal'));
+            
+            document.getElementById('uploadFileBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('confirmUploadBtn').addEventListener('click', uploadFiles);
+            document.getElementById('cancelAllUploadsBtn').addEventListener('click', cancelUpload);
+
+            document.getElementById('searchFiles').addEventListener('input', renderFilesAndFolders);
+
+            document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedItems);
+            document.getElementById('moveSelectedBtn').addEventListener('click', showMoveItemsModal);
+            document.getElementById('confirmMoveBtn').addEventListener('click', moveSelectedItems);
+            document.getElementById('cancelMoveBtn').addEventListener('click', () => hideModal('moveItemsModal'));
+            
+            document.getElementById('saveEditBtn').addEventListener('click', saveEditChanges);
+            document.getElementById('cancelEditBtn').addEventListener('click', () => hideModal('editModal'));
+
+            ['categoryModal', 'uploadModal', 'editModal', 'moveItemsModal'].forEach(modalId => {
+                document.getElementById(modalId).addEventListener('click', (e) => {
+                    if (e.target.id === modalId) {
+                        if (modalId === 'uploadModal' && !isUploading) { 
+                            cancelUpload();
+                        } else if (modalId !== 'uploadModal') {
+                            hideModal(modalId);
+                        }
+                    }
+                });
+            });
+        }
+        
+        function showCreateFolderModal() {
+            const currentModalPathEl = document.getElementById('currentModalPath');
+            currentModalPathEl.textContent = currentFolder === '/' ? '/' : currentFolder + '/';
+            showModal('categoryModal');
+        }
+
+        // --- File Manager Logic ---
+        
+        function navigateFolder(folderPath) {
+            currentFolder = folderPath;
+            document.getElementById('selectAllCheckbox').checked = false; 
+            selectedItemKeys = []; 
+            updateBreadcrumbs();
+            renderFolderList(); 
+            renderFilesAndFolders();
+            toggleActionButtonsVisibility();
+        }
+        
+        function updateBreadcrumbs() {
+            const breadcrumbsEl = document.getElementById('breadcrumbs');
+            const segments = currentFolder.split('/').filter(s => s);
+            let path = '';
+            
+            let html = `<span class="text-indigo-400 cursor-pointer hover:text-indigo-300 transition-colors" onclick="navigateFolder('/')">All Files</span>`;
+            
+            segments.forEach((segment, index) => {
+                path += (path ? '/' : '') + segment;
+                html += `<span class="icon-[tabler--chevron-right] w-4 h-4 text-gray-500"></span>`;
+                if (index < segments.length - 1) {
+                    html += `<span class="text-indigo-400 cursor-pointer hover:text-indigo-300 transition-colors" onclick="navigateFolder('${path}')">${segment}</span>`;
+                } else {
+                    html += `<span class="text-gray-300">${segment}</span>`;
+                }
+            });
+            
+            breadcrumbsEl.innerHTML = html;
+        }
+        
+        function renderFolderList() {
+            const folderListEl = document.getElementById('folderList');
+            const activePath = currentFolder;
+
+            const folderTree = {};
+            categories.forEach(path => {
+                const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+                if (!folderTree[parentPath]) {
+                    folderTree[parentPath] = [];
+                }
+                folderTree[parentPath].push(path);
+            });
+
+            function buildFolderHtml(parentPath, depth) {
+                if (!folderTree[parentPath]) return '';
+                
+                return folderTree[parentPath].map(folderPath => {
+                    const folderName = folderPath.substring(folderPath.lastIndexOf('/') + 1);
+                    // This count is for files *directly* in this folder
+                    const fileCount = uploadedFiles.filter(f => f.category === folderPath).length; 
+                    const isActive = folderPath === activePath;
+                    
+                    const subFoldersHtml = buildFolderHtml(folderPath, depth + 1);
+
+                    return `
+                        <div onclick="navigateFolder('${folderPath}')" 
+                             class="flex items-center gap-2 p-2 rounded-lg text-sm transition-colors folder-tree-item ${isActive ? 'active-folder' : 'dark-item-hover'}"
+                             style="--depth: ${depth};">
+                            <span class="icon-[tabler--folder] w-5 h-5 text-yellow-500 flex-shrink-0"></span>
+                            <span class="truncate" title="${folderName}">${folderName}</span>
+                            <span class="ml-auto text-xs font-semibold text-gray-500">
+                                ${fileCount}
+                            </span>
+                        </div>
+                        ${subFoldersHtml}
+                    `;
+                }).join('');
+            }
+
+            folderListEl.innerHTML = buildFolderHtml('', 0);
+            
+            // Update the "All Files" button state in the sidebar
+            document.querySelector(`[onclick="navigateFolder('/')"]`).classList.toggle('bg-indigo-900/50', currentFolder === '/');
+            document.querySelector(`[onclick="navigateFolder('/')"]`).classList.toggle('text-indigo-300', currentFolder === '/');
+        }
+        
+        function renderFilesAndFolders() {
+            let itemsToDisplay = [];
+            const searchTerm = document.getElementById('searchFiles').value.toLowerCase();
+            const currentPathPrefix = currentFolder === '/' ? '' : currentFolder + '/';
+
+            // 1. Determine items to consider
+            
+            const directChildFolders = categories.filter(path => 
+                (currentFolder === '/' && !path.includes('/')) || 
+                (path.startsWith(currentPathPrefix) && path.split('/').length === currentPathPrefix.split('/').length) 
+            ).sort((a, b) => a.localeCompare(b));
+            
+            let filesInCurrentFolder = uploadedFiles.filter(file => {
+                // If currentFolder is '/', show files in 'Others'
+                const targetCategory = currentFolder === '/' ? 'Others' : currentFolder;
+                return file.category === targetCategory;
+            });
+
+            // 2. Apply Search Filter
+            if (searchTerm) {
+                // Add all folders that match
+                categories.forEach(path => {
+                    const folderName = path.substring(path.lastIndexOf('/') + 1);
+                    if (folderName.toLowerCase().includes(searchTerm) || path.toLowerCase().includes(searchTerm)) {
+                        if (!itemsToDisplay.find(item => item.type === 'folder' && item.path === path)) {
+                            itemsToDisplay.push({
+                                type: 'folder',
+                                name: folderName,
+                                path: path,
+                                itemKey: path,
+                                fileCount: uploadedFiles.filter(f => f.category === path).length,
+                                createDate: (folderMetadata[path] && folderMetadata[path].createTime) || new Date().toISOString()
+                            });
+                        }
+                    }
+                });
+
+                // Add all files that match
+                uploadedFiles.forEach(file => {
+                    if (file.name.toLowerCase().includes(searchTerm) || (file.searchName && file.searchName.toLowerCase().includes(searchTerm))) {
+                        itemsToDisplay.push({...file, type: 'file', itemKey: file.firebaseKey});
+                    }
+                });
+
+            } else {
+                // Not searching
+                directChildFolders.forEach(path => {
+                    const folderName = path.substring(path.lastIndexOf('/') + 1);
+                    itemsToDisplay.push({
+                        type: 'folder',
+                        name: folderName,
+                        path: path,
+                        itemKey: path,
+                        fileCount: uploadedFiles.filter(f => f.category === path).length,
+                        createDate: (folderMetadata[path] && folderMetadata[path].createTime) || new Date().toISOString()
+                    });
+                });
+
+                itemsToDisplay.push(...filesInCurrentFolder.map(file => ({...file, type: 'file', itemKey: file.firebaseKey})));
+            }
+            
+            itemsToDisplay.sort((a, b) => {
+                if (a.type === 'folder' && b.type === 'file') return -1;
+                if (a.type === 'file' && b.type === 'folder') return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+
+            // 3. Render the List
+            const listEl = document.getElementById('fileManagerList');
+            const noFilesEl = document.getElementById('noFiles');
+            const totalFilesEl = document.getElementById('totalFiles');
+            
+            totalFilesEl.textContent = itemsToDisplay.length; 
+            
+            if (itemsToDisplay.length === 0) {
+                listEl.innerHTML = '';
+                noFilesEl.classList.remove('hidden');
+                return;
+            }
+
+            noFilesEl.classList.add('hidden');
+            
+            listEl.innerHTML = itemsToDisplay.map(item => {
+                if (item.type === 'folder') {
+                    return renderFolderItem(item);
+                } else {
+                    return renderFileItem(item);
+                }
+            }).join('');
+            
+            document.querySelectorAll('#fileManagerList input[type="checkbox"]').forEach(checkbox => {
+                if (selectedItemKeys.includes(checkbox.dataset.itemKey)) {
+                    checkbox.checked = true;
+                    checkbox.closest('.file-manager-item').classList.add('file-item-selected');
+                }
+            });
+            updateSelectAllCheckboxState();
+        }
+        
+        function renderFolderItem(folder) {
+             const key = folder.path; 
+             const isSelected = selectedItemKeys.includes(key);
+             
+             return `
+                <div class="grid grid-cols-12 items-center px-4 py-3 dark-item-hover rounded-lg transition-colors file-manager-item ${isSelected ? 'file-item-selected' : ''}" 
+                     onclick="handleItemClick(event, '${key}', 'folder')">
+                    
+                    <div class="col-span-6 flex items-center min-w-0">
+                        <label class="checkbox-container flex-shrink-0 mr-3">
+                            <input type="checkbox" data-item-key="${key}" data-item-type="folder" onchange="toggleSelection('${key}', 'folder')">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="icon-[tabler--folder] w-5 h-5 text-yellow-500 mr-2 flex-shrink-0"></span>
+                        <span class="text-sm font-medium text-gray-100 truncate-1" title="${folder.name}">${folder.name}</span>
+                        <span class="text-xs text-gray-500 ml-2 hidden sm:inline">(${folder.fileCount} files)</span>
+                    </div>
+                    
+                    <div class="col-span-3 hidden sm:block text-sm text-gray-500" title="Creation Date">${formatDate(folder.createDate)}</div>
+                    
+                    <div class="col-span-1 text-right text-sm text-gray-500 hidden sm:block">-</div>
+                    
+                    <div class="col-span-2 text-right flex justify-end">
+                        <button onclick="navigateFolder('${folder.path}')" title="Open Folder" class="btn-primary py-1 px-3 rounded-xl flex items-center justify-center btn-text-icon">
+                            
+                            Open Folder
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFileItem(file) {
+            const isSelected = selectedItemKeys.includes(file.firebaseKey);
+            
+            return `
+                <div class="grid grid-cols-12 items-center px-4 py-3 dark-item-hover rounded-lg transition-colors file-manager-item ${isSelected ? 'file-item-selected' : ''}"
+                     onclick="handleItemClick(event, '${file.firebaseKey}', 'file')">
+                    
+                    <div class="col-span-6 flex items-center min-w-0">
+                        <label class="checkbox-container flex-shrink-0 mr-3">
+                            <input type="checkbox" data-item-key="${file.firebaseKey}" data-item-type="file" onchange="toggleSelection('${file.firebaseKey}', 'file')">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="text-xl text-indigo-400 mr-2 flex-shrink-0">${getFileIcon(file.type)}</span>
+                        <div class="flex flex-col min-w-0">
+                            <span class="text-sm font-medium text-gray-100 truncate-1" title="${file.name}">${file.name}</span>
+                            ${file.searchName ? `<span class="text-xs text-gray-500 truncate-1">Search: ${file.searchName}</span>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="col-span-3 hidden sm:block text-sm text-gray-500" title="Upload Date">${formatDate(file.uploadTime)}</div>
+                    
+                    <div class="col-span-1 text-right text-sm text-gray-500 hidden sm:block" title="File Size">${file.size} MB</div>
+                    
+                    <div class="col-span-2 text-right flex justify-end gap-2">
+                        <button onclick="event.stopPropagation(); downloadFile('${file.fileId}', '${file.name}')" title="Download File" class="btn-primary py-1 px-3 rounded-xl flex items-center justify-center btn-text-icon">
+                         💠
+                        </button>
+                        <button onclick="event.stopPropagation(); editFileDetails('${file.firebaseKey}')" title="Edit Details" class="btn-secondary py-1 px-3 rounded-xl flex items-center justify-center btn-text-icon">
+                         ❌️
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Selection & Actions (Updated) ---
+        
+        function handleItemClick(event, itemKey, itemType) {
+            if (event.target.tagName === 'BUTTON' || event.target.closest('button') || event.target.closest('.checkbox-container')) {
+                return;
+            }
+            
+            const checkbox = document.querySelector(`input[data-item-key="${itemKey}"][data-item-type="${itemType}"]`);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                toggleSelection(itemKey, itemType);
+            }
+        }
+        
+        function toggleSelection(itemKey, itemType) {
+            const index = selectedItemKeys.indexOf(itemKey);
+            const checkbox = document.querySelector(`input[data-item-key="${itemKey}"][data-item-type="${itemType}"]`);
+            const itemElement = checkbox.closest('.file-manager-item');
+            
+            if (index > -1) {
+                selectedItemKeys.splice(index, 1);
+                itemElement.classList.remove('file-item-selected');
+            } else {
+                selectedItemKeys.push(itemKey);
+                itemElement.classList.add('file-item-selected');
+            }
+            
+            toggleActionButtonsVisibility();
+            updateSelectAllCheckboxState();
+        }
+        
+        function updateSelectAllCheckboxState() {
+            const totalItems = document.querySelectorAll('#fileManagerList input[type="checkbox"]').length;
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            
+            if (selectedItemKeys.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedItemKeys.length === totalItems && totalItems > 0) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedItemKeys.length > 0 && selectedItemKeys.length < totalItems) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            } else {
+                 selectAllCheckbox.checked = false;
+                 selectAllCheckbox.indeterminate = false;
+            }
+        }
+
+        function toggleSelectAll(checked) {
+            selectedItemKeys = [];
+            document.querySelectorAll('#fileManagerList input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = checked;
+                const itemKey = checkbox.dataset.itemKey;
+                const itemElement = checkbox.closest('.file-manager-item');
+                
+                if (checked) {
+                    selectedItemKeys.push(itemKey);
+                    itemElement.classList.add('file-item-selected');
+                } else {
+                    itemElement.classList.remove('file-item-selected');
+                }
+            });
+            document.getElementById('selectAllCheckbox').indeterminate = false;
+            toggleActionButtonsVisibility();
+        }
+        
+        function toggleActionButtonsVisibility() {
+            const actionsDiv = document.getElementById('selectionActions');
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            const moveBtn = document.getElementById('moveSelectedBtn');
+            const selectedCountEl = document.getElementById('selectedCount');
+            const selectedCountMoveEl = document.getElementById('selectedCountMove');
+
+            selectedCountEl.textContent = selectedItemKeys.length;
+            selectedCountMoveEl.textContent = selectedItemKeys.length;
+            
+            if (selectedItemKeys.length > 0) {
+                actionsDiv.classList.remove('hidden');
+                deleteBtn.removeAttribute('disabled');
+                moveBtn.removeAttribute('disabled');
+            } else {
+                actionsDiv.classList.add('hidden');
+                deleteBtn.setAttribute('disabled', 'true');
+                moveBtn.setAttribute('disabled', 'true');
+            }
+        }
+
+        async function deleteSelectedItems() {
+            if (selectedItemKeys.length === 0) return;
+            
+            const fileKeysToDelete = [];
+            const folderPathsToDelete = [];
+            const folderNamesToDelete = []; 
+
+            selectedItemKeys.forEach(key => {
+                const isFileKey = uploadedFiles.some(f => f.firebaseKey === key); 
+                const isFolderPath = categories.includes(key);
+
+                if (isFileKey) {
+                    fileKeysToDelete.push(key);
+                } else if (isFolderPath) {
+                    folderPathsToDelete.push(key);
+                    folderNamesToDelete.push(key.substring(key.lastIndexOf('/') + 1));
+                }
+            });
+
+            const totalItems = fileKeysToDelete.length + folderPathsToDelete.length;
+            const folderMessage = folderPathsToDelete.length > 0 ? 
+                `\n- Folders (${folderPathsToDelete.length}): ${folderNamesToDelete.join(', ')}\n\nNote: Deleting a folder will also delete its sub-folders and move its files to the 'Others' folder.` : '';
+
+            if (!confirm(`Are you sure you want to delete ${totalItems} selected item(s)?\n\n- Files: ${fileKeysToDelete.length}${folderMessage}`)) {
+                return;
+            }
+
+            try {
+                const deletePromises = [];
+                
+                // 1. Delete Files
+                fileKeysToDelete.forEach(key => {
+                    const fileRef = window.firebaseRef(window.firebaseDB, `uploadedFiles/${key}`);
+                    deletePromises.push(window.firebaseRemove(fileRef));
+                });
+
+                // 2. Delete Folders (Categories) and move all related files to 'Others'
+                const categoriesRef = window.firebaseRef(window.firebaseDB, 'categories');
+                const categoriesSnapshot = await window.firebaseGet(categoriesRef);
+                const categoriesData = categoriesSnapshot.val() || {};
+
+                folderPathsToDelete.forEach(folderPath => {
+                    // Find all paths to delete (folder and its sub-folders)
+                    const pathsToDelete = [folderPath, ...categories.filter(c => c.startsWith(folderPath + '/'))];
+                    
+                    pathsToDelete.forEach(path => {
+                        // a. Delete the folder from 'categories'
+                        const keyToDelete = Object.keys(categoriesData).find(key => categoriesData[key] === path);
+                        if (keyToDelete) {
+                            deletePromises.push(window.firebaseRemove(window.firebaseRef(window.firebaseDB, `categories/${keyToDelete}`)));
+                        }
+                        delete folderMetadata[path];
+                    });
+                    
+                    // b. Move all files from deleted paths to 'Others'
+                    uploadedFiles.filter(f => pathsToDelete.includes(f.category)).forEach(file => {
+                        const fileRef = window.firebaseRef(window.firebaseDB, `uploadedFiles/${file.firebaseKey}`);
+                        deletePromises.push(window.firebaseUpdate(fileRef, { category: 'Others' }));
+                    });
+                });
+
+                await Promise.all(deletePromises);
+                showMessage(`✅ ${totalItems} item(s) successfully deleted/updated!`, 'success');
+                selectedItemKeys = [];
+                toggleActionButtonsVisibility();
+                updateAllCategoriesFromFiles();
+                navigateFolder(currentFolder); // Re-render current view
+            } catch (error) {
+                console.error('Deletion error:', error);
+                showMessage(`❌ Error during deletion: ${error.message}`, 'error');
+            }
+        }
+        
+        function showMoveItemsModal() {
+            if (selectedItemKeys.length === 0) return;
+            
+            const moveSelect = document.getElementById('moveCategoryDropdown');
+            const moveCountEl = document.getElementById('moveSelectedCount');
+            
+            moveCountEl.textContent = selectedItemKeys.length;
+            
+            // Populate dropdown with all possible destination paths, excluding the current folder
+            const availableDestinations = categories
+                .filter(c => c !== currentFolder)
+                .sort((a, b) => a.localeCompare(b));
+            
+            moveSelect.innerHTML = availableDestinations.map(cat => 
+                `<option value="${cat}">${cat}</option>`
+            ).join('');
+            
+            moveSelect.insertAdjacentHTML('afterbegin', '<option value="/">Root (All Files)</option>');
+            
+            showModal('moveItemsModal');
+        }
+
+        async function moveSelectedItems() {
+            const destinationPath = document.getElementById('moveCategoryDropdown').value;
+            if (!destinationPath) {
+                showMessage('Please select a destination folder!', 'error');
+                return;
+            }
+            
+            const fileKeysToMove = [];
+            const folderPathsToMove = [];
+
+            selectedItemKeys.forEach(key => {
+                const isFileKey = uploadedFiles.some(f => f.firebaseKey === key); 
+                const isFolderPath = categories.includes(key);
+
+                if (isFileKey) {
+                    fileKeysToMove.push(key);
+                } else if (isFolderPath) {
+                    folderPathsToMove.push(key);
+                }
+            });
+
+            if (fileKeysToMove.length === 0 && folderPathsToMove.length === 0) {
+                showMessage('No items selected to move!', 'error');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to move ${selectedItemKeys.length} item(s) to "${destinationPath === '/' ? 'Root' : destinationPath}"?`)) {
+                return;
+            }
+
+            try {
+                const movePromises = [];
+                const categoriesRef = window.firebaseRef(window.firebaseDB, 'categories');
+                const categoriesSnapshot = await window.firebaseGet(categoriesRef);
+                const categoriesData = categoriesSnapshot.val() || {};
+                
+                // 1. Move Files
+                const finalFileDestination = destinationPath === '/' ? 'Others' : destinationPath; 
+                fileKeysToMove.forEach(key => {
+                    const fileRef = window.firebaseRef(window.firebaseDB, `uploadedFiles/${key}`);
+                    movePromises.push(window.firebaseUpdate(fileRef, { category: finalFileDestination }));
+                });
+                
+                // 2. Move Folders (rename/update path)
+                folderPathsToMove.forEach(folderPath => {
+                    const folderName = folderPath.substring(folderPath.lastIndexOf('/') + 1);
+                    const newPath = destinationPath === '/' ? folderName : destinationPath + '/' + folderName;
+                    
+                    if (categories.includes(newPath)) {
+                         showMessage(`Folder "${folderName}" already exists in the destination. Skipping folder move.`, 'error');
+                         return;
+                    }
+                    
+                    // a. Update the folder path itself in 'categories'
+                    const keyToUpdate = Object.keys(categoriesData).find(key => categoriesData[key] === folderPath);
+                    if (keyToUpdate) {
+                        movePromises.push(window.firebaseSet(window.firebaseRef(window.firebaseDB, `categories/${keyToUpdate}`), newPath));
+                    }
+                    
+                    // b. Update the path for all files inside this folder and its sub-folders
+                    const pathsToUpdate = [folderPath, ...categories.filter(c => c.startsWith(folderPath + '/'))];
+                    uploadedFiles.filter(f => pathsToUpdate.includes(f.category)).forEach(file => {
+                        let newCategory = file.category.replace(folderPath, newPath);
+                        
+                        const fileRef = window.firebaseRef(window.firebaseDB, `uploadedFiles/${file.firebaseKey}`);
+                        movePromises.push(window.firebaseUpdate(fileRef, { category: newCategory }));
+                    });
+                    
+                    // c. Update the path for all sub-folders in 'categories'
+                    categories.filter(c => c.startsWith(folderPath + '/')).forEach(subPath => {
+                        const newSubPath = subPath.replace(folderPath, newPath);
+                        
+                        const subKeyToUpdate = Object.keys(categoriesData).find(key => categoriesData[key] === subPath);
+                        if (subKeyToUpdate) {
+                            movePromises.push(window.firebaseSet(window.firebaseRef(window.firebaseDB, `categories/${subKeyToUpdate}`), newSubPath));
+                        }
+                    });
+                    
+                    if (folderMetadata[folderPath]) {
+                        folderMetadata[newPath] = folderMetadata[folderPath];
+                        delete folderMetadata[folderPath];
+                    }
+                });
+
+
+                await Promise.all(movePromises);
+                showMessage(`✅ ${selectedItemKeys.length} item(s) successfully moved to "${destinationPath === '/' ? 'Root' : destinationPath}"!`, 'success');
+                selectedItemKeys = [];
+                toggleActionButtonsVisibility();
+                hideModal('moveItemsModal');
+                updateAllCategoriesFromFiles();
+                navigateFolder(currentFolder); // Re-render current view
+            } catch (error) {
+                console.error('Move error:', error);
+                showMessage(`❌ Error during move operation: ${error.message}`, 'error');
+            }
+        }
+        
+        // --- File Upload Flow (Updated FIX) ---
+
+        function handleFileSelect(e) {
+            selectedFilesForUpload = Array.from(e.target.files);
+            document.getElementById('fileInput').value = '';
+            if (selectedFilesForUpload.length > 0) showUploadModal();
+        }
+
+        function showUploadModal() {
+            const dropdown = document.getElementById('uploadCategoryDropdown');
+            const list = document.getElementById('uploadFilesList');
+            const confirmBtn = document.getElementById('confirmUploadBtn');
+            
+            const destinationCategories = ['/', ...categories]; 
+            
+            dropdown.innerHTML = destinationCategories.map(cat => 
+                `<option value="${cat}" ${cat === currentFolder ? 'selected' : ''}>${cat === '/' ? 'Root (Others)' : cat}</option>`
+            ).join('');
+            
+            list.innerHTML = selectedFilesForUpload.map((file, index) => `
+                <div class="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
+                    <span class="text-xl">${getFileIcon(file.type)}</span>
+                    <div class="flex-1 min-w-0">
+                        <span class="text-sm font-medium text-gray-200 truncate-1" title="${file.name}">${file.name}</span>
+                        <span class="text-xs text-gray-400 ml-2">(${formatBytes(file.size)})</span>
+                    </div>
+                    <input type="text" data-index="${index}" placeholder="Search Name (Optional)" class="input-dark w-40 px-3 py-1 text-xs rounded-md search-name-input">
+                </div>
+            `).join('');
+
+            document.querySelectorAll('#uploadFilesList .search-name-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const index = e.target.dataset.index;
+                    selectedFilesForUpload[index].searchName = e.target.value.trim();
+                });
+            });
+            
+            confirmBtn.disabled = false;
+            hideModal('categoryModal');
+            hideModal('editModal');
+            hideModal('moveItemsModal');
+            document.getElementById('progressContainer').classList.add('hidden');
+            showModal('uploadModal');
+        }
+
+        async function uploadFiles() {
+            if (!firebaseInitialized || isUploading) {
+                showMessage('Waiting for connection or another upload is in progress.', 'error');
+                return;
+            }
+            if (selectedFilesForUpload.length === 0) {
+                showMessage('Please select at least one file!', 'error');
+                return;
+            }
+            
+            let uploadCategory = document.getElementById('uploadCategoryDropdown').value;
+            const finalCategory = uploadCategory === '/' ? 'Others' : uploadCategory; 
+            
+            const maxSize = 50 * 1024 * 1024; // 50 MB
+            if (selectedFilesForUpload.some(file => file.size > maxSize)) {
+                showMessage('Some files are too large! Telegram limit for file upload is around 50MB (for sendDocument).', 'error');
+                return;
+            }
+            
+            isUploading = true;
+            document.getElementById('confirmUploadBtn').disabled = true;
+            document.getElementById('progressContainer').classList.remove('hidden');
+
+            try {
+                for (let i = 0; i < selectedFilesForUpload.length; i++) {
+                    const file = selectedFilesForUpload[i];
+                    const searchName = file.searchName || '';
+                    const uploadTime = new Date().toISOString();
+
+                    const formData = new FormData();
+                    formData.append('chat_id', CHAT_ID);
+                    formData.append('document', file, file.name);
+                    
+                    const sizeInBytes = file.size; 
+                    
+                    const caption = `📎 ${file.name}\n${searchName ? `🔍 Alt Name: ${searchName}\n` : ''}📏 Size: ${formatBytes(sizeInBytes)}\n📂 Category: ${finalCategory}\n📅 Uploaded: ${formatDate(uploadTime)}`;
+                    formData.append('caption', caption);
+
+                    const response = await fetch(`${TELEGRAM_API_URL}/sendDocument`, { method: 'POST', body: formData });
+                    const result = await response.json();
+
+                    if (!result.ok) throw new Error(result.description || 'Upload failed');
+                    
+                    // --- FIX: Handle different Telegram file types (document, video, audio) ---
+                    let fileObject = result.result.document || result.result.video || result.result.audio;
+
+                    if (!fileObject || !fileObject.file_id) {
+                        console.error('Telegram response missing file object:', result);
+                        throw new Error('Telegram did not return a valid file ID for the uploaded item.');
+                    }
+                    // --- END FIX ---
+
+                    const uploadedFile = {
+                        name: file.name,
+                        searchName: searchName,
+                        size: (sizeInBytes / 1024 / 1024).toFixed(2), 
+                        sizeInBytes: sizeInBytes, 
+                        type: file.type,
+                        messageId: result.result.message_id,
+                        chatId: CHAT_ID,
+                        uploadTime: uploadTime, 
+                        fileId: fileObject.file_id, // Use the extracted fileObject
+                        category: finalCategory
+                    };
+                    await saveFileToFirebase(uploadedFile);
+                    updateProgress(((i + 1) / selectedFilesForUpload.length) * 100);
+                }
+                showMessage(`✅ All ${selectedFilesForUpload.length} files successfully uploaded!`, 'success');
+                cancelUpload();
+            } catch (error) {
+                console.error('Upload error:', error);
+                showMessage(`❌ Upload error: ${error.message}`, 'error');
+                isUploading = false;
+                document.getElementById('confirmUploadBtn').disabled = false;
+            }
+        }
+        
+        // --- Edit Details Flow (Updated) ---
+
+        let currentEditingKey = null;
+
+        function editFileDetails(firebaseKey) {
+            currentEditingKey = firebaseKey;
+            const fileToEdit = uploadedFiles.find(f => f.firebaseKey === firebaseKey);
+            if (!fileToEdit) {
+                showMessage('File not found for editing.', 'error');
+                return;
+            }
+            
+            document.getElementById('currentFileName').textContent = fileToEdit.name;
+            
+            const dropdown = document.getElementById('editCategoryDropdown');
+            const destinationCategories = ['/', ...categories];
+            dropdown.innerHTML = destinationCategories.map(cat => {
+                // Determine selected state: '/' maps to 'Others' for file storage
+                const isSelected = (fileToEdit.category === 'Others' && cat === '/') || (fileToEdit.category === cat && cat !== 'Others');
+                const displayCat = cat === '/' ? 'Root (Others)' : cat;
+                return `<option value="${cat}" ${isSelected ? 'selected' : ''}>${displayCat}</option>`;
+            }).join('');
+            
+            document.getElementById('editSearchName').value = fileToEdit.searchName || '';
+            
+            showModal('editModal');
+        }
+
+        async function saveEditChanges() {
+            if (!currentEditingKey) return;
+            let newCategory = document.getElementById('editCategoryDropdown').value;
+            const newSearchName = document.getElementById('editSearchName').value.trim();
+
+            const finalCategory = newCategory === '/' ? 'Others' : newCategory; 
+
+            try {
+                const fileRef = window.firebaseRef(window.firebaseDB, `uploadedFiles/${currentEditingKey}`);
+                await window.firebaseUpdate(fileRef, {
+                    category: finalCategory,
+                    searchName: newSearchName
+                });
+                showMessage('✅ File details updated successfully!', 'success');
+                hideModal('editModal');
+            } catch (error) {
+                console.error('Update error:', error);
+                showMessage('❌ Failed to update file details.', 'error');
+            }
+        }
+
+        // --- Utilities (Fixed Storage Calculation) ---
+        
+        function updateCategoryDropdowns() {
+            const destinationCategories = ['/', ...categories];
+            
+            const uploadSelect = document.getElementById('uploadCategoryDropdown');
+            if (uploadSelect) {
+                uploadSelect.innerHTML = destinationCategories.map(cat => `<option value="${cat}">${cat === '/' ? 'Root (Others)' : cat}</option>`).join('');
+            }
+
+            const editSelect = document.getElementById('editCategoryDropdown');
+            if (editSelect) {
+                editSelect.innerHTML = destinationCategories.map(cat => `<option value="${cat}">${cat === '/' ? 'Root (Others)' : cat}</option>`).join('');
+            }
+            
+            const moveSelect = document.getElementById('moveCategoryDropdown');
+            if (moveSelect) {
+                 moveSelect.innerHTML = destinationCategories.map(cat => `<option value="${cat}">${cat === '/' ? 'Root (All Files)' : cat}</option>`).join('');
+            }
+        }
+
+        function cancelUpload() {
+            selectedFilesForUpload = [];
+            isUploading = false;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = '';
+            document.getElementById('progressContainer').classList.add('hidden');
+            hideModal('uploadModal');
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('progressText').textContent = `Uploading... ${Math.round(percent)}% (${selectedFilesForUpload.length} files)`;
+        }
+
+        // --- Storage Calculation ---
+        function calculateAndDisplayTotalStorage() {
+            const usedStorageElement = document.getElementById('usedStorage');
+            if (!usedStorageElement) return;
+            
+            const totalBytes = uploadedFiles.reduce((total, file) => {
+                const sizeInBytes = parseInt(file.sizeInBytes, 10);
+                if (!isNaN(sizeInBytes)) {
+                     return total + sizeInBytes;
+                }
+                // Fallback for old entries that might have size in MB string
+                const sizeInMB = parseFloat(file.size);
+                return total + (isNaN(sizeInMB) ? 0 : sizeInMB * 1024 * 1024);
+            }, 0);
+
+            usedStorageElement.textContent = formatBytes(totalBytes);
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        function formatDate(isoString) {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit' };
+            
+            const formattedDate = date.toLocaleDateString('en-US', dateOptions);
+            const formattedTime = date.toLocaleTimeString('en-US', timeOptions);
+            
+            return `${formattedDate} | ${formattedTime}`;
+        }
+        
+        // --- Improved File Icon Logic for all file types ---
+        function getFileIcon(type, fileName = '') {
+            const extension = fileName.split('.').pop().toLowerCase();
+            
+            if (type.startsWith('video/') || extension === 'mp4' || extension === 'mov' || extension === 'avi' || extension === 'mkv') return '🎥';
+            if (type.startsWith('image/') || extension === 'jpg' || extension === 'jpeg' || extension === 'png' || extension === 'gif' || extension === 'webp') return '🖼️';
+            if (type.startsWith('audio/') || extension === 'mp3' || extension === 'wav' || extension === 'ogg') return '🎵';
+            if (type.includes('pdf') || extension === 'pdf') return '📄';
+            
+            if (type.includes('word') || type.includes('msword') || extension === 'doc' || extension === 'docx') return '📝';
+            if (type.includes('excel') || type.includes('sheet') || type.includes('csv') || extension === 'xls' || extension === 'xlsx') return '📊';
+            if (type.includes('presentation') || type.includes('powerpoint') || extension === 'ppt' || extension === 'pptx') return '📈';
+            
+            if (type.includes('zip') || type.includes('rar') || type.includes('tar') || extension === 'zip' || extension === 'rar') return '📦';
+            if (type.includes('text') || extension === 'txt' || extension === 'log') return '📑';
+            if (extension === 'js' || extension === 'html' || extension === 'css' || extension === 'py') return '💻';
+            
+            return '📎'; // Default fallback
+        }
+
+        async function downloadFile(fileId, fileName) {
+            try {
+                const response = await fetch(`${TELEGRAM_API_URL}/getFile?file_id=${fileId}`);
+                const result = await response.json();
+                if (result.ok) {
+                    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${result.result.file_path}`;
+                    const link = document.createElement('a');
+                    link.href = fileUrl;
+                    link.download = fileName;
+                    link.target = '_blank';
+                    link.click();
+                    showMessage('✅ Download started!', 'success');
+                } else {
+                    throw new Error(result.description || 'Download failed');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                showMessage(`❌ Download error: ${error.message}`, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = message;
+            statusMessage.className = `fixed top-4 right-4 px-6 py-3 rounded-xl shadow-lg z-50 transition-all duration-300 transform translate-x-0 opacity-100 ${
+                type === 'success' ? 'bg-green-600 text-white' : type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+            }`;
+            setTimeout(() => {
+                statusMessage.classList.remove('translate-x-0', 'opacity-100');
+                statusMessage.classList.add('translate-x-full', 'opacity-0');
+            }, 5000);
+        }
+        
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        // Expose functions to global scope for HTML
+        window.downloadFile = downloadFile;
+        window.editFileDetails = editFileDetails;
+        window.navigateFolder = navigateFolder;
+        window.toggleSelectAll = toggleSelectAll;
+        window.toggleSelection = toggleSelection;
+        window.handleItemClick = handleItemClick;
+    </script>
+</body>
+</html>
